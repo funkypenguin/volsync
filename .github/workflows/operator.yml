@@ -19,6 +19,7 @@ env:
   OPERATOR_IMAGE: "quay.io/backube/volsync"
   CUSTOM_SCORECARD_IMAGE: "quay.io/backube/volsync-custom-scorecard-tests"
   DOCKER_BUILDKIT: "1"
+  FFWD_RELEASE_BRANCH: "" # set to "" to skip ffwding from main to this branch
 
 jobs:
   lint:
@@ -30,7 +31,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -51,7 +52,7 @@ jobs:
           echo "ImageVersion=${ImageVersion}" >> $GITHUB_ENV
 
       - name: Enable cache for pre-commit hooks
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ~/.cache/pre-commit
           key: pre-commit|${{ env.ImageOS }}|${{ env.ImageVersion }}|${{ env.PYHASH }}|${{ hashFiles('.pre-commit-config.yaml') }}
@@ -88,8 +89,8 @@ jobs:
           echo "DEF_BRANCH_NAME: $DEF_BRANCH_NAME"
 
           CUST_IMG_TAG=$TGT_BRANCH_NAME
-          # For main use "latest"
-          if [ "$TGT_BRANCH_NAME" == "$DEF_BRANCH_NAME" ]; then
+          # For main or the ffwing branch (will match main), use "latest"
+          if [ "$TGT_BRANCH_NAME" == "$DEF_BRANCH_NAME" ] || [ "$TGT_BRANCH_NAME" == "$FFWD_RELEASE_BRANCH" ]; then
             CUST_IMG_TAG="latest"
           fi
 
@@ -174,7 +175,7 @@ jobs:
         run: make test
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./cover.out
@@ -432,7 +433,7 @@ jobs:
         run: kubectl -n minio wait --for=condition=Available --timeout=300s deploy/minio
 
       - name: Setup Python
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
           cache: 'pipenv'
@@ -456,6 +457,42 @@ jobs:
     steps:
       - name: Success
         run: echo "Previous steps were successful"
+
+  # This job is to optionally ffwd the main branch to a release branch
+  ffwd-to-release-br:
+    name: Fast forward release branch
+    needs: e2e-success
+    if: >
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Skip ffwd job check
+        if: ${{ env.FFWD_RELEASE_BRANCH == '' }}
+        run: |
+          echo "Skipping ffwding, no FFWD_RELEASE_BRANCH specified"
+
+      - name: Checkout source
+        if: ${{ env.FFWD_RELEASE_BRANCH != '' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Fetch whole history so we can see all commits
+          fetch-depth: 0
+
+      - name: ffwd
+        if: ${{ env.FFWD_RELEASE_BRANCH != '' }}
+        run: |
+          echo "ffwding $FFWD_RELEASE_BRANCH to latest from main ..."
+          git config user.name "ffwd workflow"
+          git config user.email ""
+          git fetch origin $FFWD_RELEASE_BRANCH
+          git checkout $FFWD_RELEASE_BRANCH
+          git merge origin/main --ff-only
+          git push origin $FFWD_RELEASE_BRANCH
+          echo "ffwding complete."
 
   # This is a dummy job that gates whether the container image artifacts should
   # be pushed to the registry. It is only here so that the "if" clause doesn't
