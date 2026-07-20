@@ -2447,7 +2447,7 @@ var _ = Describe("Restic as a destination", func() {
 				//nolint:dupl
 				When("Azure Workload Identity env vars are in the secret", func() {
 					BeforeEach(func() {
-						repo.StringData = map[string]string{
+						repo.StringData = map[string]string{ //nolint:gosec
 							"RESTIC_REPOSITORY":          "myrepo",
 							"RESTIC_PASSWORD":            "pass123",
 							"AZURE_TENANT_ID":            "tenant-123",

@@ -1219,7 +1219,7 @@ var _ = Describe("Rclone as a source", func() {
 							{
 								MountPath: "addl-secret",
 								VolumeSource: volsyncv1alpha1.MoverVolumeSource{
-									Secret: &corev1.SecretVolumeSource{
+									Secret: &corev1.SecretVolumeSource{ //nolint:gosec
 										SecretName: "rclone-extra-secret",
 									},
 								},
