@@ -257,7 +257,7 @@ var _ = Describe("Replication relationships", func() {
 				repRel.data.Destination = &replicationRelationshipDestination{
 					Cluster:     "",
 					Namespace:   destNS.Name,
-					RDName:      "test",
+					RDName:      "test", //nolint:goconst
 					Destination: volsyncv1alpha1.ReplicationDestinationRsyncSpec{},
 				}
 			})
